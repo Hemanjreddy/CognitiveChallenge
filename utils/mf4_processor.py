@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from asamdf import MDF
+from asammdf import MDF
 import streamlit as st
 from typing import Dict, Any, Optional
 import tempfile
