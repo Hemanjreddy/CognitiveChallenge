@@ -122,23 +122,69 @@ class MF4Processor:
         signals = {}
         
         try:
-            # Get all available channels
-            channel_names = list(self.mdf.channels_db.keys())
+            # Get all available channels with proper handling of duplicates
+            all_channels = []
+            
+            # Iterate through all groups to get unique channel names
+            for group_index, group in enumerate(self.mdf.groups):
+                if hasattr(group, 'channels'):
+                    for channel in group.channels:
+                        if hasattr(channel, 'name'):
+                            channel_name = channel.name
+                            # Create unique name for channels that appear in multiple groups
+                            unique_name = f"{channel_name}_group_{group_index}" if channel_name in [ch['name'] for ch in all_channels] else channel_name
+                            all_channels.append({
+                                'name': channel_name,
+                                'unique_name': unique_name,
+                                'group': group_index,
+                                'index': len([ch for ch in group.channels if hasattr(ch, 'name') and ch.name == channel_name])
+                            })
+            
+            # If no channels found via groups, fall back to channels_db
+            if not all_channels:
+                channel_names = list(self.mdf.channels_db.keys())
+                all_channels = [{'name': name, 'unique_name': name, 'group': None, 'index': None} for name in channel_names]
             
             # Progress bar for signal extraction
             progress_bar = st.progress(0)
             status_text = st.empty()
             
-            for i, channel_name in enumerate(channel_names):
+            for i, channel_info in enumerate(all_channels):
                 try:
-                    status_text.text(f'Extracting signal: {channel_name}')
+                    channel_name = channel_info['name']
+                    unique_name = channel_info['unique_name']
+                    group = channel_info['group']
+                    index = channel_info['index']
                     
-                    # Get signal data
-                    signal = self.mdf.get(channel_name)
+                    status_text.text(f'Extracting signal: {unique_name}')
+                    
+                    # Skip timestamp channels as they cause issues
+                    if channel_name.lower() in ['timestamp', 'time', 't']:
+                        continue
+                    
+                    # Get signal data with group and index specification if available
+                    try:
+                        if group is not None and index is not None:
+                            signal = self.mdf.get(channel_name, group=group, index=index)
+                        else:
+                            signal = self.mdf.get(channel_name)
+                    except Exception:
+                        # If specific group/index fails, try without
+                        try:
+                            signal = self.mdf.get(channel_name)
+                        except Exception:
+                            continue
                     
                     if signal is not None and hasattr(signal, 'samples'):
                         # Convert to numpy array and handle different data types
-                        signal_data = np.array(signal.samples, dtype=np.float64)
+                        try:
+                            signal_data = np.array(signal.samples, dtype=np.float64)
+                        except (ValueError, TypeError):
+                            # Try converting with different methods for non-numeric data
+                            try:
+                                signal_data = np.array(signal.samples, dtype=np.float32).astype(np.float64)
+                            except:
+                                continue
                         
                         # Skip if signal is empty or invalid
                         if len(signal_data) == 0:
@@ -158,14 +204,14 @@ class MF4Processor:
                             else:
                                 signal_data = np.nan_to_num(signal_data)
                         
-                        signals[channel_name] = signal_data
+                        signals[unique_name] = signal_data
                         
                 except Exception as e:
-                    st.warning(f"Could not extract signal '{channel_name}': {str(e)}")
+                    st.warning(f"Could not extract signal '{channel_info.get('unique_name', 'unknown')}': {str(e)}")
                     continue
                 
                 # Update progress
-                progress_bar.progress((i + 1) / len(channel_names))
+                progress_bar.progress((i + 1) / len(all_channels))
             
             # Clear progress indicators
             progress_bar.empty()
@@ -183,33 +229,42 @@ class MF4Processor:
     def _create_time_axis(self) -> np.ndarray:
         """Create time axis for signals"""
         try:
-            # Try to get time information from a signal
+            # Try to get time information from a non-timestamp signal to avoid conflicts
             channel_names = list(self.mdf.channels_db.keys())
             
             if not channel_names:
                 return np.array([])
             
-            # Get first available signal to determine time axis
-            first_signal = self.mdf.get(channel_names[0])
+            # Find a suitable signal (avoid timestamp channels)
+            suitable_signal = None
+            for channel_name in channel_names:
+                if channel_name.lower() not in ['timestamp', 'time', 't']:
+                    try:
+                        test_signal = self.mdf.get(channel_name)
+                        if test_signal is not None and hasattr(test_signal, 'samples'):
+                            suitable_signal = test_signal
+                            break
+                    except Exception:
+                        continue
             
-            if first_signal is not None and hasattr(first_signal, 'timestamps'):
-                # Use actual timestamps if available
-                timestamps = np.array(first_signal.timestamps, dtype=np.float64)
-                # Convert to relative time (start from 0)
-                if len(timestamps) > 0:
+            if suitable_signal is not None:
+                if hasattr(suitable_signal, 'timestamps') and len(suitable_signal.timestamps) > 0:
+                    # Use actual timestamps if available
+                    timestamps = np.array(suitable_signal.timestamps, dtype=np.float64)
+                    # Convert to relative time (start from 0)
                     timestamps = timestamps - timestamps[0]
-                return timestamps
-            else:
-                # Create synthetic time axis
-                if first_signal is not None and hasattr(first_signal, 'samples'):
-                    sample_count = len(first_signal.samples)
-                    # Use extracted sample rate
+                    return timestamps
+                elif hasattr(suitable_signal, 'samples'):
+                    # Create synthetic time axis based on sample count
+                    sample_count = len(suitable_signal.samples)
+                    # Use extracted sample rate or default
                     file_info = getattr(self, '_cached_file_info', {'sample_rate': 1.0})
                     sample_rate = file_info.get('sample_rate', 1.0)
                     
                     return np.linspace(0, sample_count / sample_rate, sample_count)
-                else:
-                    return np.array([])
+            
+            # Fallback: create a simple time axis
+            return np.array([])
                     
         except Exception as e:
             st.warning(f"Could not create time axis: {str(e)}")
