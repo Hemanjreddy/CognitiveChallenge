@@ -8,6 +8,7 @@ import traceback
 from utils.mf4_processor import MF4Processor
 from utils.peak_detector import PeakDetector
 from utils.data_exporter import DataExporter
+from utils.anomaly_detector import AnomalyDetector
 
 # Page configuration
 st.set_page_config(
@@ -24,6 +25,8 @@ if 'detected_peaks' not in st.session_state:
     st.session_state.detected_peaks = None
 if 'selected_signals' not in st.session_state:
     st.session_state.selected_signals = []
+if 'anomaly_results' not in st.session_state:
+    st.session_state.anomaly_results = None
 
 def main():
     st.title("🚗 Vehicle MF4 Signal Peak Detector")
@@ -76,6 +79,44 @@ def main():
             value=(5, 50),
             help="Minimum and maximum peak width (samples)"
         )
+        
+        # Anomaly Detection Settings
+        st.subheader("🚨 Anomaly Detection")
+        
+        enable_anomaly_detection = st.checkbox(
+            "Enable Anomaly Detection",
+            value=True,
+            help="Detect unusual peaks in the signal data"
+        )
+        
+        if enable_anomaly_detection:
+            anomaly_methods = st.multiselect(
+                "Detection Methods",
+                options=['statistical', 'zscore', 'iqr', 'temporal', 'isolation_forest'],
+                default=['statistical', 'zscore'],
+                help="Select anomaly detection methods to apply"
+            )
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                zscore_threshold = st.slider(
+                    "Z-Score Threshold",
+                    min_value=1.5,
+                    max_value=4.0,
+                    value=2.5,
+                    step=0.1,
+                    help="Threshold for Z-score anomaly detection"
+                )
+            
+            with col2:
+                statistical_threshold = st.slider(
+                    "Statistical Threshold",
+                    min_value=2.0,
+                    max_value=5.0,
+                    value=3.5,
+                    step=0.1,
+                    help="Threshold for modified Z-score detection"
+                )
     
     # Main content area
     if uploaded_file is not None:
@@ -128,8 +169,29 @@ def main():
                             data, selected_signals, peak_params
                         )
                     
+                    # Anomaly detection
+                    if enable_anomaly_detection and anomaly_methods:
+                        with st.spinner("Detecting anomalies..."):
+                            anomaly_detector = AnomalyDetector()
+                            
+                            anomaly_config = {
+                                'methods': anomaly_methods,
+                                'zscore_threshold': zscore_threshold,
+                                'statistical_threshold': statistical_threshold,
+                                'iqr_multiplier': 1.5,
+                                'temporal_threshold': 3.0,
+                                'isolation_percentile': 95
+                            }
+                            
+                            st.session_state.anomaly_results = anomaly_detector.detect_peak_anomalies(
+                                st.session_state.detected_peaks, data, selected_signals, anomaly_config
+                            )
+                    else:
+                        st.session_state.anomaly_results = None
+                    
                     # Display results
-                    display_results(data, st.session_state.detected_peaks, selected_signals)
+                    display_results(data, st.session_state.detected_peaks, selected_signals, 
+                                  st.session_state.anomaly_results)
                     
                 else:
                     st.warning("Please select at least one signal to analyze.")
@@ -164,14 +226,25 @@ def main():
             - **Peak Width Range**: Expected width range of valid peaks
             """)
 
-def display_results(data, detected_peaks, selected_signals):
-    """Display analysis results with interactive charts"""
+def display_results(data, detected_peaks, selected_signals, anomaly_results=None):
+    """Display analysis results with interactive charts and anomaly detection"""
     
     st.subheader("📊 Signal Analysis Results")
     
-    # Summary statistics
+    # Summary statistics with anomaly information
     total_peaks = sum(len(peaks['indices']) for peaks in detected_peaks.values())
-    st.metric("Total Peaks Detected", total_peaks)
+    total_anomalies = 0
+    if anomaly_results:
+        total_anomalies = sum(len(anomalies['anomalies']) for anomalies in anomaly_results.values())
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Peaks Detected", total_peaks)
+    with col2:
+        st.metric("Anomalous Peaks", total_anomalies)
+    with col3:
+        anomaly_rate = (total_anomalies / total_peaks * 100) if total_peaks > 0 else 0
+        st.metric("Anomaly Rate", f"{anomaly_rate:.1f}%")
     
     # Create interactive plots
     fig = make_subplots(
@@ -221,6 +294,30 @@ def display_results(data, detected_peaks, selected_signals):
                 ),
                 row=i, col=1
             )
+            
+            # Plot anomalous peaks if available
+            if anomaly_results and signal_name in anomaly_results:
+                anomaly_info = anomaly_results[signal_name]
+                if len(anomaly_info['anomaly_indices']) > 0:
+                    anomaly_peak_times = time_axis[anomaly_info['anomaly_indices']]
+                    anomaly_peak_values = signal_data[anomaly_info['anomaly_indices']]
+                    
+                    fig.add_trace(
+                        go.Scatter(
+                            x=anomaly_peak_times,
+                            y=anomaly_peak_values,
+                            mode='markers',
+                            name=f'{signal_name} Anomalies',
+                            marker=dict(
+                                color='orange',
+                                size=12,
+                                symbol='triangle-up',
+                                line=dict(width=2, color='black')
+                            ),
+                            showlegend=i==1
+                        ),
+                        row=i, col=1
+                    )
     
     fig.update_layout(
         height=300 * len(selected_signals),
@@ -233,15 +330,20 @@ def display_results(data, detected_peaks, selected_signals):
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # Peak statistics table
+    # Peak statistics table with anomaly information
     st.subheader("📋 Peak Detection Summary")
     
     summary_data = []
     for signal_name in selected_signals:
         peaks_info = detected_peaks[signal_name]
+        anomaly_count = 0
+        if anomaly_results and signal_name in anomaly_results:
+            anomaly_count = len(anomaly_results[signal_name]['anomalies'])
+            
         summary_data.append({
             'Signal': signal_name,
             'Peaks Count': len(peaks_info['indices']),
+            'Anomalous Peaks': anomaly_count,
             'Avg Height': f"{np.mean(peaks_info['heights']):.3f}" if len(peaks_info['heights']) > 0 else "N/A",
             'Max Height': f"{np.max(peaks_info['heights']):.3f}" if len(peaks_info['heights']) > 0 else "N/A",
             'Avg Width': f"{np.mean(peaks_info['widths']):.1f}" if len(peaks_info['widths']) > 0 else "N/A"
@@ -276,6 +378,44 @@ def display_results(data, detected_peaks, selected_signals):
                 file_name="peak_detection_results.json",
                 mime="application/json"
             )
+    
+    # Anomaly Analysis Section
+    if anomaly_results:
+        st.subheader("🚨 Anomaly Analysis Results")
+        
+        # Anomaly overview
+        total_signals_with_anomalies = sum(1 for anomalies in anomaly_results.values() if len(anomalies['anomalies']) > 0)
+        st.info(f"Found anomalies in {total_signals_with_anomalies} out of {len(selected_signals)} signals")
+        
+        # Detailed anomaly information per signal
+        for signal_name in selected_signals:
+            if signal_name in anomaly_results:
+                anomaly_info = anomaly_results[signal_name]
+                if len(anomaly_info['anomalies']) > 0:
+                    with st.expander(f"🔍 Anomalies in {signal_name} ({len(anomaly_info['anomalies'])} found)"):
+                        
+                        # Anomaly statistics
+                        stats = anomaly_info['statistics']
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Anomaly Rate", f"{stats['anomaly_rate']*100:.1f}%")
+                        with col2:
+                            st.metric("Mean Score", f"{stats['mean_anomaly_score']:.2f}")
+                        with col3:
+                            st.metric("Max Score", f"{stats['max_anomaly_score']:.2f}")
+                        
+                        # Anomaly details table
+                        anomaly_data = []
+                        for anomaly in anomaly_info['anomalies']:
+                            anomaly_data.append({
+                                'Time (s)': f"{anomaly['time']:.3f}",
+                                'Height': f"{anomaly['height']:.3f}",
+                                'Type': anomaly['anomaly_type'],
+                                'Description': anomaly['description']
+                            })
+                        
+                        anomaly_df = pd.DataFrame(anomaly_data)
+                        st.dataframe(anomaly_df, use_container_width=True)
     
     # Detailed peak information
     with st.expander("🔍 Detailed Peak Information"):

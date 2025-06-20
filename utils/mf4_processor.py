@@ -240,9 +240,16 @@ class MF4Processor:
             for channel_name in channel_names:
                 if channel_name.lower() not in ['timestamp', 'time', 't']:
                     try:
-                        test_signal = self.mdf.get(channel_name)
-                        if test_signal is not None and hasattr(test_signal, 'samples'):
-                            suitable_signal = test_signal
+                        # Try to get signal from first available group to avoid conflicts
+                        for group_idx in range(len(self.mdf.groups)):
+                            try:
+                                test_signal = self.mdf.get(channel_name, group=group_idx)
+                                if test_signal is not None and hasattr(test_signal, 'samples'):
+                                    suitable_signal = test_signal
+                                    break
+                            except Exception:
+                                continue
+                        if suitable_signal is not None:
                             break
                     except Exception:
                         continue
