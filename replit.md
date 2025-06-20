@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a Streamlit-based web application designed for automotive engineers and data analysts to process and analyze vehicle measurement files (MF4 format). The application provides automated peak detection capabilities for signal analysis, allowing users to upload MF4 files, visualize signal data, and export analysis results.
+This is a Streamlit-based web application designed for Mercedes-Benz automotive engineers and data analysts to process and analyze vehicle measurement files (MF4 format). The application provides automated peak detection capabilities with advanced anomaly detection for signal analysis, allowing users to upload MF4 files, visualize signal data, and export comprehensive analysis results.
 
 The application is built using Python with Streamlit as the web framework, leveraging scientific computing libraries for signal processing and peak detection algorithms.
 
