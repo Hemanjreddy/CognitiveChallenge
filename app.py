@@ -13,7 +13,7 @@ from utils.anomaly_detector import AnomalyDetector
 # Page configuration
 st.set_page_config(
     page_title="Mercedes-Benz MF4 Signal Peak Detector",
-    page_icon="⭐",
+    page_icon="☆",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -29,8 +29,28 @@ if 'anomaly_results' not in st.session_state:
     st.session_state.anomaly_results = None
 
 def main():
-    st.title("⭐ Mercedes-Benz MF4 Signal Peak Detector")
-    st.markdown("Upload and analyze Mercedes-Benz vehicle measurement files (MF4) with automated peak detection and anomaly analysis")
+    # Custom CSS for Mercedes-Benz styling
+    st.markdown("""
+    <style>
+    .main-header {
+        color: #1f1f1f;
+        font-family: 'Arial', sans-serif;
+        text-align: center;
+        padding: 1rem 0;
+        border-bottom: 2px solid #c4c4c4;
+        margin-bottom: 2rem;
+    }
+    .subtitle {
+        color: #666;
+        text-align: center;
+        font-style: italic;
+        margin-bottom: 2rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<h1 class="main-header">☆ Mercedes-Benz MF4 Signal Peak Detector</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Professional vehicle measurement file analysis with advanced peak detection and anomaly identification</p>', unsafe_allow_html=True)
     
     # Sidebar for parameters and controls
     with st.sidebar:
