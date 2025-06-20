@@ -97,26 +97,81 @@ def main():
                 help="Select anomaly detection methods to apply"
             )
             
-            col1, col2 = st.columns(2)
-            with col1:
-                zscore_threshold = st.slider(
-                    "Z-Score Threshold",
-                    min_value=1.5,
-                    max_value=4.0,
-                    value=2.5,
-                    step=0.1,
-                    help="Threshold for Z-score anomaly detection"
-                )
-            
-            with col2:
-                statistical_threshold = st.slider(
-                    "Statistical Threshold",
-                    min_value=2.0,
-                    max_value=5.0,
-                    value=3.5,
-                    step=0.1,
-                    help="Threshold for modified Z-score detection"
-                )
+            # Show relevant thresholds based on selected methods
+            if anomaly_methods:
+                st.write("**Threshold Settings:**")
+                
+                # Z-Score threshold
+                if 'zscore' in anomaly_methods:
+                    zscore_threshold = st.slider(
+                        "Z-Score Threshold",
+                        min_value=1.5,
+                        max_value=4.0,
+                        value=2.5,
+                        step=0.1,
+                        help="Standard deviations from mean (higher = less sensitive)"
+                    )
+                else:
+                    zscore_threshold = 2.5
+                
+                # Statistical (Modified Z-Score) threshold
+                if 'statistical' in anomaly_methods:
+                    statistical_threshold = st.slider(
+                        "Modified Z-Score Threshold",
+                        min_value=2.0,
+                        max_value=5.0,
+                        value=3.5,
+                        step=0.1,
+                        help="Median-based outlier detection (higher = less sensitive)"
+                    )
+                else:
+                    statistical_threshold = 3.5
+                
+                # IQR threshold
+                if 'iqr' in anomaly_methods:
+                    iqr_multiplier = st.slider(
+                        "IQR Multiplier",
+                        min_value=1.0,
+                        max_value=3.0,
+                        value=1.5,
+                        step=0.1,
+                        help="Multiplier for interquartile range (higher = less sensitive)"
+                    )
+                else:
+                    iqr_multiplier = 1.5
+                
+                # Temporal threshold
+                if 'temporal' in anomaly_methods:
+                    temporal_threshold = st.slider(
+                        "Temporal Anomaly Threshold",
+                        min_value=2.0,
+                        max_value=5.0,
+                        value=3.0,
+                        step=0.1,
+                        help="Threshold for unusual time intervals between peaks"
+                    )
+                else:
+                    temporal_threshold = 3.0
+                
+                # Isolation Forest threshold
+                if 'isolation_forest' in anomaly_methods:
+                    isolation_percentile = st.slider(
+                        "Isolation Forest Percentile",
+                        min_value=90,
+                        max_value=99,
+                        value=95,
+                        step=1,
+                        help="Percentile threshold for outlier detection (higher = less sensitive)"
+                    )
+                else:
+                    isolation_percentile = 95
+            else:
+                # Default values when no methods selected
+                zscore_threshold = 2.5
+                statistical_threshold = 3.5
+                iqr_multiplier = 1.5
+                temporal_threshold = 3.0
+                isolation_percentile = 95
     
     # Main content area
     if uploaded_file is not None:
@@ -178,9 +233,9 @@ def main():
                                 'methods': anomaly_methods,
                                 'zscore_threshold': zscore_threshold,
                                 'statistical_threshold': statistical_threshold,
-                                'iqr_multiplier': 1.5,
-                                'temporal_threshold': 3.0,
-                                'isolation_percentile': 95
+                                'iqr_multiplier': iqr_multiplier,
+                                'temporal_threshold': temporal_threshold,
+                                'isolation_percentile': isolation_percentile
                             }
                             
                             st.session_state.anomaly_results = anomaly_detector.detect_peak_anomalies(
@@ -224,6 +279,22 @@ def main():
             - **Minimum Distance**: Minimum separation between detected peaks
             - **Prominence**: How much a peak stands out from surrounding baseline
             - **Peak Width Range**: Expected width range of valid peaks
+            """)
+        
+        # Anomaly detection methods explanation
+        with st.expander("🚨 Anomaly Detection Methods"):
+            st.markdown("""
+            **Statistical (Modified Z-Score)**: Uses median and median absolute deviation for robust outlier detection. Less sensitive to extreme values.
+            
+            **Z-Score**: Classic method using mean and standard deviation. Good for normally distributed data.
+            
+            **IQR (Interquartile Range)**: Identifies outliers beyond Q1-1.5×IQR and Q3+1.5×IQR bounds. Robust against skewed distributions.
+            
+            **Temporal**: Detects unusual time intervals between consecutive peaks. Useful for finding irregular timing patterns.
+            
+            **Isolation Forest**: Advanced method that isolates anomalies by examining feature combinations (height, width, prominence).
+            
+            **Sensitivity**: Lower thresholds = more sensitive (detect more anomalies), Higher thresholds = less sensitive (detect fewer, more obvious anomalies)
             """)
 
 def display_results(data, detected_peaks, selected_signals, anomaly_results=None):
