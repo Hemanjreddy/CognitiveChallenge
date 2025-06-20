@@ -112,7 +112,23 @@ utils/
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+### June 20, 2025 - Standalone Distribution Complete
+- Created comprehensive portable application packages
+- Built self-contained Windows launcher with Python detection
+- Generated complete installation guide and troubleshooting documentation
+- Provided multiple distribution formats (ZIP, portable, EXE-ready)
+- Added professional branding and user-friendly error handling
+
+### Distribution Packages Created:
+- `Mercedes_Benz_MF4_Detector_Portable.zip` - Portable version requiring Python
+- `Mercedes_Benz_MF4_Detector_Complete.zip` - Self-contained with advanced launcher
+- `simple_launcher.py` - EXE-conversion ready script
+- `Installation_Guide.md` - Comprehensive setup instructions
+- `EXE_Creation_Instructions.md` - Professional executable creation guide
+
 ## Changelog
 
-Changelog:
-- June 17, 2025. Initial setup
+- June 17, 2025: Initial setup with MF4 processing and peak detection
+- June 20, 2025: Completed standalone distribution with multiple deployment options
