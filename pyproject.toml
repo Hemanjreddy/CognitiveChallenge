@@ -9,6 +9,7 @@ dependencies = [
     "openpyxl",
     "pandas",
     "plotly",
+    "pyinstaller>=6.14.1",
     "scipy",
     "streamlit>=1.45.1",
 ]
