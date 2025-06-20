@@ -1,4 +1,20 @@
-@echo off
+#!/usr/bin/env python3
+"""
+Create final distribution package with improved launcher
+"""
+
+import os
+import zipfile
+import shutil
+from pathlib import Path
+
+def create_final_package():
+    """Create the final distribution package"""
+    
+    print("Creating final Mercedes-Benz MF4 Detector package...")
+    
+    # Update the self-contained launcher with better error handling
+    improved_launcher = '''@echo off
 title Mercedes-Benz MF4 Signal Peak Detector
 cd /d "%~dp0"
 
@@ -40,10 +56,10 @@ if %errorlevel% equ 0 (
 
 REM Method 2: Check common installation paths
 for %%P in (
-    "%LOCALAPPDATA%\Programs\Python\Python*\python.exe"
-    "%ProgramFiles%\Python*\python.exe"
-    "%ProgramFiles(x86)%\Python*\python.exe"
-    "%USERPROFILE%\AppData\Local\Programs\Python\Python*\python.exe"
+    "%LOCALAPPDATA%\\Programs\\Python\\Python*\\python.exe"
+    "%ProgramFiles%\\Python*\\python.exe"
+    "%ProgramFiles(x86)%\\Python*\\python.exe"
+    "%USERPROFILE%\\AppData\\Local\\Programs\\Python\\Python*\\python.exe"
 ) do (
     if exist "%%P" (
         set PYTHON_EXE=%%P
@@ -174,3 +190,54 @@ if %errorlevel% neq 0 (
     echo Check %LOG_FILE% for details
     pause
 )
+'''
+    
+    # Update the launcher in the self-contained directory
+    launcher_path = Path("Mercedes_Benz_MF4_Detector_SelfContained/Mercedes_Benz_MF4_Detector.bat")
+    with open(launcher_path, "w") as f:
+        f.write(improved_launcher)
+    
+    # Create comprehensive ZIP package
+    zip_name = "Mercedes_Benz_MF4_Detector_FINAL.zip"
+    
+    print(f"Creating final ZIP package: {zip_name}")
+    
+    with zipfile.ZipFile(zip_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Add self-contained version
+        dist_dir = Path("Mercedes_Benz_MF4_Detector_SelfContained")
+        for root, dirs, files in os.walk(dist_dir):
+            for file in files:
+                file_path = Path(root) / file
+                arcname = file_path.relative_to(dist_dir.parent)
+                zipf.write(file_path, arcname)
+        
+        # Add documentation
+        docs = ["Installation_Guide.md", "EXE_Creation_Instructions.md", "User_Guide.md"]
+        for doc in docs:
+            if Path(doc).exists():
+                zipf.write(doc)
+    
+    print(f"Final package created: {zip_name}")
+    return zip_name
+
+def main():
+    zip_file = create_final_package()
+    
+    print("\n" + "="*60)
+    print("MERCEDES-BENZ MF4 DETECTOR - FINAL DISTRIBUTION")
+    print("="*60)
+    print(f"Package: {zip_file}")
+    print("\nDISTRIBUTION INSTRUCTIONS:")
+    print("1. Share the ZIP file with users")
+    print("2. Users extract all files to a folder")
+    print("3. Users run Mercedes_Benz_MF4_Detector.bat")
+    print("4. Application installs dependencies and starts automatically")
+    print("\nThe launcher now includes:")
+    print("✓ Advanced Python detection")
+    print("✓ Detailed error messages")
+    print("✓ Installation logging")
+    print("✓ Corporate firewall guidance")
+    print("✓ Professional user interface")
+
+if __name__ == "__main__":
+    main()
