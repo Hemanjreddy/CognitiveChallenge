@@ -449,7 +449,7 @@ def display_results(data, detected_peaks, selected_signals, anomaly_results=None
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("📄 Export as CSV", type="primary"):
+        if st.button("📄 Export as CSV"):
             exporter = DataExporter()
             csv_data = exporter.export_to_csv(detected_peaks, data, selected_signals)
             st.download_button(
